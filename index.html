@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Exa · Floor 03 Seating</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --paper: #f4f3ef;
+    --floor: #fcfbf8;
+    --wall: #26251f;
+    --room: #edeae3;
+    --room-line: #d6d2c8;
+    --ink: #26251f;
+    --muted: #8a877e;
+    --green-100: #e2efd4;
+    --green-300: #b9d99c;
+    --green-600: #5f9c3f;
+    --green-700: #47762f;
+    --accent-blue: #1a73e8;
+    --error: #c0392b;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--paper);
+    min-height: 100vh;
+    padding: 18px 22px;
+    color: var(--ink);
+  }
+
+  /* ── Header ─────────────────────────────── */
+  .page-header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.3px; }
+  .seat-count { font-size: 12px; color: var(--muted); }
+
+  .header-tools {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  #search {
+    font-size: 12px;
+    padding: 6px 10px;
+    border: 1px solid #ccc9c0;
+    border-radius: 6px;
+    background: white;
+    width: 180px;
+  }
+  #search:focus { outline: 2px solid var(--green-300); border-color: var(--green-600); }
+  #admin-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #ccc9c0;
+    background: white;
+    cursor: pointer;
+    color: #555;
+    transition: all 0.15s;
+  }
+  #admin-btn:hover { background: #f1efe9; }
+  #admin-btn.active { background: var(--ink); color: white; border-color: var(--ink); }
+  .edit-hint { font-size: 11px; color: var(--muted); display: none; }
+  body.edit-mode .edit-hint { display: block; }
+  .save-status { font-size: 11px; color: var(--muted); min-width: 110px; text-align: right; }
+  .save-status.saving { color: var(--accent-blue); }
+  .save-status.saved  { color: var(--green-700); }
+  .save-status.error  { color: var(--error); }
+
+  /* ── Floor ──────────────────────────────── */
+  .floor-wrap {
+    background: white;
+    border-radius: 14px;
+    border: 1px solid #e2dfd7;
+    padding: 22px;
+    overflow: auto;
+  }
+  .floor {
+    position: relative;
+    width: 1460px;
+    height: 830px;
+    background: var(--floor);
+    border: 3px solid var(--wall);
+    border-radius: 3px;
+  }
+
+  .zone {
+    position: absolute;
+    background: var(--room);
+    border: 1.5px solid var(--room-line);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #9a968a;
+    text-align: center;
+    line-height: 1.4;
+    padding: 4px;
+  }
+  .zone.soft { background: repeating-linear-gradient(45deg, #f3f1ea, #f3f1ea 6px, #edeae3 6px, #edeae3 12px); }
+
+  .bank-label {
+    position: absolute;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #b3b0a5;
+  }
+
+  /* ── Desks ──────────────────────────────── */
+  .desk {
+    position: absolute;
+    width: 40px;
+    height: 30px;
+    border-radius: 4px;
+    background: var(--green-100);
+    border: 1.5px solid var(--green-300);
+    color: var(--green-700);
+    font-size: 9px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .desk-occupied {
+    background: var(--green-600);
+    border-color: var(--green-700);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  body.edit-mode .desk { cursor: pointer; }
+  body.edit-mode .desk:hover {
+    transform: scale(1.12);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    z-index: 5;
+  }
+  .desk.search-hit {
+    outline: 3px solid var(--accent-blue);
+    outline-offset: 2px;
+    z-index: 4;
+  }
+  .desk.search-dim { opacity: 0.25; }
+
+  /* ── Tooltip ────────────────────────────── */
+  #tooltip {
+    position: fixed;
+    background: var(--ink);
+    color: white;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 50;
+    white-space: nowrap;
+  }
+
+  /* ── Legend ─────────────────────────────── */
+  .legend {
+    display: flex;
+    gap: 22px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: #555;
+    align-items: center;
+  }
+  .legend .chip {
+    display: inline-block;
+    width: 16px; height: 12px;
+    border-radius: 3px;
+    margin-right: 6px;
+    vertical-align: -1px;
+  }
+  .chip-free { background: var(--green-100); border: 1.5px solid var(--green-300); }
+  .chip-taken { background: var(--green-600); border: 1.5px solid var(--green-700); }
+  .chip-room { background: var(--room); border: 1.5px solid var(--room-line); }
+
+  /* ── Modals ─────────────────────────────── */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    padding: 22px;
+    width: 300px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  }
+  .modal h2 { font-size: 15px; margin-bottom: 12px; }
+  .modal input {
+    width: 100%;
+    font-size: 14px;
+    padding: 8px 10px;
+    border: 1px solid #ccc9c0;
+    border-radius: 6px;
+    margin-bottom: 12px;
+  }
+  .modal input:focus { outline: 2px solid var(--green-300); border-color: var(--green-600); }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal button {
+    font-size: 13px;
+    padding: 7px 14px;
+    border-radius: 6px;
+    border: 1px solid #ccc9c0;
+    background: white;
+    cursor: pointer;
+  }
+  .modal button.primary { background: var(--green-600); border-color: var(--green-700); color: white; font-weight: 600; }
+  .modal button.danger { color: var(--error); border-color: #e4b6af; }
+  .modal .error-msg { font-size: 12px; color: var(--error); margin-bottom: 10px; display: none; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div>
+    <div class="eyebrow">Floorplan</div>
+    <h1>Exa · Floor 03</h1>
+  </div>
+  <span class="seat-count" id="seat-count"></span>
+  <div class="header-tools">
+    <input id="search" type="search" placeholder="Find a person…" autocomplete="off">
+    <span class="edit-hint">Click a green desk to assign</span>
+    <span class="save-status" id="save-status"></span>
+    <button id="admin-btn">Admin</button>
+  </div>
+</div>
+
+<div class="floor-wrap">
+  <div class="floor" id="floor"></div>
+  <div class="legend">
+    <span><span class="chip chip-free"></span>Open seat</span>
+    <span><span class="chip chip-taken"></span>Assigned</span>
+    <span><span class="chip chip-room"></span>Shared / rooms</span>
+    <span style="color:#b3b0a5">Hover a desk to see the full name</span>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<!-- Password modal -->
+<div class="modal-backdrop" id="pw-modal">
+  <div class="modal">
+    <h2>Admin access</h2>
+    <div class="error-msg" id="pw-error">Wrong password — try again.</div>
+    <input id="pw-input" type="password" placeholder="Password" autocomplete="off">
+    <div class="modal-actions">
+      <button onclick="closePwModal()">Cancel</button>
+      <button class="primary" onclick="checkPassword()">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<!-- Desk edit modal -->
+<div class="modal-backdrop" id="edit-modal">
+  <div class="modal">
+    <h2 id="modal-title">Desk</h2>
+    <input id="name-input" type="text" placeholder="Full name (blank = open seat)" autocomplete="off">
+    <div class="modal-actions">
+      <button class="danger" onclick="clearDesk()">Clear</button>
+      <button onclick="closeModal()">Cancel</button>
+      <button class="primary" onclick="saveName()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══ CONFIG ═══════════════════════════════════════════════
+// 1) Change this password before publishing. Note: it lives in the page
+//    source, so treat it as a speed bump, not real security.
+const ADMIN_PASSWORD = 'CHANGE-ME';
+
+// 2) Paste your Cloudflare Worker URL here once it's deployed (see SETUP.md).
+//    Leave it '' to run in local-only mode (saves to this browser only).
+const WORKER_URL = '';
+
+const STORAGE_KEY = 'exaFloor03Seating';
+
+// ══ FLOOR LAYOUT ═════════════════════════════════════════
+// Desk banks: x/y = top-left corner, cols × rows of desks.
+// Desk cell is 40×30 with a 4px gap (44/34 pitch).
+const BANKS = [
+  // West wall, top to bottom
+  { id: 'A', x: 30,   y: 60,  cols: 4, rows: 2 },
+  { id: 'B', x: 30,   y: 200, cols: 3, rows: 2 },
+  { id: 'C', x: 30,   y: 340, cols: 3, rows: 2 },
+  { id: 'D', x: 30,   y: 480, cols: 3, rows: 2 },
+  { id: 'E', x: 30,   y: 660, cols: 4, rows: 2 },
+  // North-center vertical pods
+  { id: 'F', x: 330,  y: 60,  cols: 2, rows: 3 },
+  { id: 'G', x: 480,  y: 60,  cols: 2, rows: 4 },
+  { id: 'H', x: 620,  y: 60,  cols: 2, rows: 4 },
+  // South-center vertical pods
+  { id: 'I', x: 980,  y: 540, cols: 2, rows: 4 },
+  { id: 'J', x: 1120, y: 540, cols: 2, rows: 4 },
+  // East wall, top to bottom
+  { id: 'K', x: 1270, y: 60,  cols: 4, rows: 2 },
+  { id: 'L', x: 1300, y: 230, cols: 3, rows: 2 },
+  { id: 'M', x: 1300, y: 380, cols: 3, rows: 2 },
+  { id: 'N', x: 1345, y: 520, cols: 2, rows: 2 },
+  { id: 'O', x: 1270, y: 660, cols: 4, rows: 2 },
+];
+
+// Non-bookable rooms & shared areas (position, size, label)
+const ZONES = [
+  { x: 700,  y: 20,  w: 150, h: 55,  label: 'Stairs',        soft: true },
+  { x: 760,  y: 105, w: 300, h: 190, label: 'Restrooms' },
+  { x: 1080, y: 105, w: 140, h: 190, label: 'Phone booths' },
+  { x: 330,  y: 250, w: 190, h: 140, label: 'Lounge' },
+  { x: 350,  y: 430, w: 130, h: 190, label: 'Stairs',        soft: true },
+  { x: 550,  y: 350, w: 180, h: 90,  label: 'Tables' },
+  { x: 780,  y: 350, w: 280, h: 110, label: 'Meeting rooms' },
+  { x: 1240, y: 150, w: 170, h: 0,   label: '' }, // spacer (unused)
+  { x: 1100, y: 320, w: 150, h: 100, label: 'Table' },
+  { x: 530,  y: 640, w: 180, h: 150, label: 'Conference' },
+  { x: 740,  y: 660, w: 170, h: 120, label: 'Kitchen' },
+].filter(z => z.h > 0);
+
+// ══ STATE ════════════════════════════════════════════════
+let isAdmin    = false;
+let activeDesk = null;
+let fileSha    = null;
+const names    = {};
+
+// ══ BUILD THE FLOOR ══════════════════════════════════════
+const floor = document.getElementById('floor');
+
+ZONES.forEach(z => {
+  const el = document.createElement('div');
+  el.className = 'zone' + (z.soft ? ' soft' : '');
+  el.style.cssText = `left:${z.x}px; top:${z.y}px; width:${z.w}px; height:${z.h}px;`;
+  el.textContent = z.label;
+  floor.appendChild(el);
+});
+
+BANKS.forEach(bank => {
+  const label = document.createElement('div');
+  label.className = 'bank-label';
+  label.style.cssText = `left:${bank.x}px; top:${bank.y - 14}px;`;
+  label.textContent = bank.id;
+  floor.appendChild(label);
+
+  let n = 1;
+  for (let r = 0; r < bank.rows; r++) {
+    for (let c = 0; c < bank.cols; c++) {
+      const desk = document.createElement('div');
+      desk.className = 'desk';
+      desk.id = bank.id + n;
+      desk.textContent = bank.id + n;
+      desk.style.cssText = `left:${bank.x + c * 44}px; top:${bank.y + r * 34}px;`;
+      desk.addEventListener('click', () => handleDeskClick(desk));
+      desk.addEventListener('mousemove', e => showTooltip(e, desk));
+      desk.addEventListener('mouseleave', hideTooltip);
+      floor.appendChild(desk);
+      n++;
+    }
+  }
+});
+
+// ══ NAMES / RENDERING ════════════════════════════════════
+function applyName(id, name) {
+  const desk = document.getElementById(id);
+  if (!desk) return;
+  if (name) {
+    names[id] = name;
+    const initials = name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    desk.textContent = initials;
+    desk.classList.add('desk-occupied');
+  } else {
+    delete names[id];
+    desk.textContent = id;
+    desk.classList.remove('desk-occupied');
+  }
+  updateCount();
+}
+
+function updateCount() {
+  const total = document.querySelectorAll('.desk').length;
+  const taken = Object.keys(names).length;
+  document.getElementById('seat-count').textContent = `${taken} / ${total} seats assigned`;
+}
+updateCount();
+
+// ══ TOOLTIP ══════════════════════════════════════════════
+const tooltip = document.getElementById('tooltip');
+function showTooltip(e, desk) {
+  const name = names[desk.id];
+  if (!name) { hideTooltip(); return; }
+  tooltip.textContent = `${name} · ${desk.id}`;
+  tooltip.style.left = (e.clientX + 12) + 'px';
+  tooltip.style.top  = (e.clientY - 30) + 'px';
+  tooltip.style.opacity = 1;
+}
+function hideTooltip() { tooltip.style.opacity = 0; }
+
+// ══ SEARCH ═══════════════════════════════════════════════
+document.getElementById('search').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('.desk').forEach(d => {
+    d.classList.remove('search-hit', 'search-dim');
+    if (!q) return;
+    const name = (names[d.id] || '').toLowerCase();
+    if (name.includes(q) || d.id.toLowerCase() === q) d.classList.add('search-hit');
+    else d.classList.add('search-dim');
+  });
+});
+
+// ══ ADMIN / MODALS ═══════════════════════════════════════
+document.getElementById('admin-btn').addEventListener('click', () => {
+  if (isAdmin) {
+    isAdmin = false;
+    document.body.classList.remove('edit-mode');
+    document.getElementById('admin-btn').classList.remove('active');
+  } else {
+    document.getElementById('pw-modal').classList.add('open');
+    setTimeout(() => document.getElementById('pw-input').focus(), 50);
+  }
+});
+
+function checkPassword() {
+  if (document.getElementById('pw-input').value === ADMIN_PASSWORD) {
+    isAdmin = true;
+    document.body.classList.add('edit-mode');
+    document.getElementById('admin-btn').classList.add('active');
+    closePwModal();
+  } else {
+    document.getElementById('pw-error').style.display = 'block';
+  }
+}
+function closePwModal() {
+  document.getElementById('pw-modal').classList.remove('open');
+  document.getElementById('pw-input').value = '';
+  document.getElementById('pw-error').style.display = 'none';
+}
+
+function handleDeskClick(desk) {
+  if (!isAdmin) return;
+  activeDesk = desk.id;
+  document.getElementById('modal-title').textContent = `Desk ${desk.id}`;
+  document.getElementById('name-input').value = names[desk.id] || '';
+  document.getElementById('edit-modal').classList.add('open');
+  setTimeout(() => document.getElementById('name-input').focus(), 50);
+}
+function closeModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+  activeDesk = null;
+}
+function saveName() {
+  if (!activeDesk) return;
+  applyName(activeDesk, document.getElementById('name-input').value.trim());
+  closeModal();
+  persist();
+}
+function clearDesk() {
+  if (!activeDesk) return;
+  applyName(activeDesk, '');
+  closeModal();
+  persist();
+}
+
+// Enter key submits, Esc closes
+document.getElementById('name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveName();
+  if (e.key === 'Escape') closeModal();
+});
+document.getElementById('pw-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkPassword();
+  if (e.key === 'Escape') closePwModal();
+});
+['pw-modal', 'edit-modal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', function (e) {
+    if (e.target === this) (id === 'pw-modal' ? closePwModal : closeModal)();
+  });
+});
+
+// ══ PERSISTENCE ══════════════════════════════════════════
+function setStatus(msg, cls) {
+  const el = document.getElementById('save-status');
+  el.textContent = msg;
+  el.className = 'save-status' + (cls ? ' ' + cls : '');
+}
+
+async function persist() {
+  if (WORKER_URL) {
+    setStatus('Saving…', 'saving');
+    try {
+      const payload = {};
+      document.querySelectorAll('.desk').forEach(d => { payload[d.id] = names[d.id] || ''; });
+      const res = await fetch(WORKER_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sha: fileSha, data: payload })
+      });
+      if (!res.ok) throw new Error(res.status);
+      fileSha = (await res.json()).sha;
+      setStatus('Saved ✓', 'saved');
+      setTimeout(() => setStatus('', ''), 2000);
+    } catch (e) {
+      setStatus('Save failed', 'error');
+    }
+  } else {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(names));
+      setStatus('Saved locally', 'saved');
+      setTimeout(() => setStatus('', ''), 2000);
+    } catch (e) {
+      setStatus('Save failed', 'error');
+    }
+  }
+}
+
+async function load() {
+  if (WORKER_URL) {
+    setStatus('Loading…', 'saving');
+    try {
+      const res = await fetch(WORKER_URL);
+      if (!res.ok) throw new Error(res.status);
+      const json = await res.json();
+      fileSha = json.sha;
+      Object.entries(json.data || {}).forEach(([id, name]) => { if (name) applyName(id, name); });
+      setStatus('', '');
+    } catch (e) {
+      setStatus('Load failed', 'error');
+    }
+  } else {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      Object.entries(saved).forEach(([id, name]) => { if (name) applyName(id, name); });
+    } catch (e) {}
+  }
+}
+load();
+</script>
+</body>
+</html>
