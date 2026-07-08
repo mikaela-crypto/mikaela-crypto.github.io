@@ -309,6 +309,9 @@ const STORAGE_KEY = 'exaFloor03Seating';
 // ══ FLOOR LAYOUT ═════════════════════════════════════════
 // Desk banks: x/y = top-left corner, cols × rows of desks.
 // Desk cell is 40×30 with a 4px gap (44/34 pitch).
+// Optional per bank:
+//   omit:  [desk numbers to remove]  — leaves a gap, other labels unchanged
+//   extra: [{ c, r }]                — adds desks at extra grid cells
 const BANKS = [
   // West wall, top to bottom
   { id: 'A', x: 30,   y: 60,  cols: 4, rows: 2 },
@@ -318,17 +321,18 @@ const BANKS = [
   { id: 'E', x: 30,   y: 660, cols: 4, rows: 2 },
   // North-center vertical pods
   { id: 'F', x: 330,  y: 60,  cols: 2, rows: 3 },
-  { id: 'G', x: 480,  y: 60,  cols: 2, rows: 4 },
-  { id: 'H', x: 620,  y: 60,  cols: 2, rows: 4 },
+  { id: 'G', x: 480,  y: 60,  cols: 2, rows: 5 },              // 10 desks
+  { id: 'H', x: 620,  y: 60,  cols: 2, rows: 4,
+    extra: [{ c: 1, r: 4 }] },                                 // H9 below H8
   // South-center vertical pods
-  { id: 'I', x: 980,  y: 540, cols: 2, rows: 4 },
-  { id: 'J', x: 1120, y: 540, cols: 2, rows: 4 },
+  { id: 'I', x: 980,  y: 540, cols: 2, rows: 5 },              // 10 desks
+  { id: 'J', x: 1120, y: 540, cols: 2, rows: 5 },              // 10 desks
   // East wall, top to bottom
-  { id: 'K', x: 1270, y: 60,  cols: 4, rows: 2 },
+  { id: 'K', x: 1270, y: 60,  cols: 4, rows: 2, omit: [1, 5] },
   { id: 'L', x: 1300, y: 230, cols: 3, rows: 2 },
   { id: 'M', x: 1300, y: 380, cols: 3, rows: 2 },
-  { id: 'N', x: 1345, y: 520, cols: 2, rows: 2 },
-  { id: 'O', x: 1270, y: 660, cols: 4, rows: 2 },
+  { id: 'N', x: 1301, y: 520, cols: 3, rows: 2, omit: [6] },   // 5 desks
+  { id: 'O', x: 1270, y: 660, cols: 4, rows: 2, omit: [1, 5] },
 ];
 
 // Non-bookable rooms & shared areas (position, size, label)
@@ -370,21 +374,26 @@ BANKS.forEach(bank => {
   label.textContent = bank.id;
   floor.appendChild(label);
 
+  function addDesk(n, c, r) {
+    const desk = document.createElement('div');
+    desk.className = 'desk';
+    desk.id = bank.id + n;
+    desk.textContent = bank.id + n;
+    desk.style.cssText = `left:${bank.x + c * 44}px; top:${bank.y + r * 34}px;`;
+    desk.addEventListener('click', () => handleDeskClick(desk));
+    desk.addEventListener('mousemove', e => showTooltip(e, desk));
+    desk.addEventListener('mouseleave', hideTooltip);
+    floor.appendChild(desk);
+  }
+
   let n = 1;
   for (let r = 0; r < bank.rows; r++) {
     for (let c = 0; c < bank.cols; c++) {
-      const desk = document.createElement('div');
-      desk.className = 'desk';
-      desk.id = bank.id + n;
-      desk.textContent = bank.id + n;
-      desk.style.cssText = `left:${bank.x + c * 44}px; top:${bank.y + r * 34}px;`;
-      desk.addEventListener('click', () => handleDeskClick(desk));
-      desk.addEventListener('mousemove', e => showTooltip(e, desk));
-      desk.addEventListener('mouseleave', hideTooltip);
-      floor.appendChild(desk);
+      if (!(bank.omit || []).includes(n)) addDesk(n, c, r);
       n++;
     }
   }
+  (bank.extra || []).forEach(cell => { addDesk(n, cell.c, cell.r); n++; });
 });
 
 // ══ NAMES / RENDERING ════════════════════════════════════
